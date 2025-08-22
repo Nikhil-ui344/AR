@@ -125,56 +125,157 @@
         <div id="gesture-indicator" class="gesture-indicator"></div>
     </div>
 
-    <!-- Three.js -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r150/three.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r150/examples/js/loaders/GLTFLoader.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r150/examples/js/controls/OrbitControls.js"></script>
-
-    <!-- MediaPipe Hands -->
-    <script crossorigin="anonymous" src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
-    <script crossorigin="anonymous" src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js"></script>
-    <script crossorigin="anonymous" src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
-    <script crossorigin="anonymous" src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
-
-    <!-- Main Application Scripts -->
+    <!-- Three.js with multiple CDN fallbacks -->
     <script>
-        // Auto-redirect to fallback if main app fails to load
-        setTimeout(() => {
-            const loadingElement = document.getElementById('loading');
-            if (loadingElement && loadingElement.style.display !== 'none') {
-                console.log('Loading timeout - redirecting to fallback version');
-                const loadingStep = document.getElementById('loading-step');
-                if (loadingStep) {
-                    loadingStep.innerHTML = `
-                        <div style="color: #ff6b6b;">Loading is taking too long...</div>
-                        <div style="margin-top: 10px;">
-                            <button onclick="location.href='index-fallback.html'" style="
-                                background: #007acc; 
-                                color: white; 
-                                border: none; 
-                                padding: 12px 24px; 
-                                border-radius: 5px; 
-                                cursor: pointer;
-                                font-size: 16px;
-                                animation: pulse 2s infinite;
-                            ">Try Lightweight Version</button>
-                        </div>
-                        <style>
-                            @keyframes pulse {
-                                0% { transform: scale(1); }
-                                50% { transform: scale(1.05); }
-                                100% { transform: scale(1); }
-                            }
-                        </style>
-                    `;
-                }
+        // Check if Three.js loads, if not redirect to fallback
+        let threeJsLoaded = false;
+        let loadAttempts = 0;
+        const maxAttempts = 3;
+        
+        const threeJsCDNs = [
+            'https://cdnjs.cloudflare.com/ajax/libs/three.js/r150/three.min.js',
+            'https://unpkg.com/three@0.150.0/build/three.min.js',
+            'https://cdn.skypack.dev/three@0.150.0'
+        ];
+        
+        function tryLoadThreeJS(cdnIndex = 0) {
+            if (cdnIndex >= threeJsCDNs.length) {
+                console.error('All Three.js CDNs failed, redirecting to fallback');
+                document.getElementById('loading').innerHTML = `
+                    <div style="color: #ff6b6b; text-align: center;">
+                        <h3>CDN Loading Failed</h3>
+                        <p>Unable to load Three.js from external sources.</p>
+                        <p>Redirecting to lightweight version...</p>
+                    </div>
+                `;
+                setTimeout(() => {
+                    window.location.href = 'index-fallback.html';
+                }, 2000);
+                return;
             }
-        }, 8000); // 8 second timeout
+            
+            const script = document.createElement('script');
+            script.src = threeJsCDNs[cdnIndex];
+            script.onload = () => {
+                console.log('Three.js loaded successfully from:', threeJsCDNs[cdnIndex]);
+                threeJsLoaded = true;
+                loadOtherScripts();
+            };
+            script.onerror = () => {
+                console.warn(`Failed to load Three.js from ${threeJsCDNs[cdnIndex]}, trying next CDN...`);
+                tryLoadThreeJS(cdnIndex + 1);
+            };
+            document.head.appendChild(script);
+        }
+        
+        function loadOtherScripts() {
+            // Load other scripts only after Three.js is confirmed loaded
+            const scripts = [
+                'https://cdnjs.cloudflare.com/ajax/libs/three.js/r150/examples/js/loaders/GLTFLoader.js',
+                'https://cdnjs.cloudflare.com/ajax/libs/three.js/r150/examples/js/controls/OrbitControls.js'
+            ];
+            
+            let scriptsLoaded = 0;
+            scripts.forEach(src => {
+                const script = document.createElement('script');
+                script.src = src;
+                script.onload = () => {
+                    scriptsLoaded++;
+                    if (scriptsLoaded === scripts.length) {
+                        console.log('All Three.js scripts loaded');
+                        // Continue with MediaPipe loading (optional)
+                        loadMediaPipe();
+                    }
+                };
+                script.onerror = () => {
+                    console.warn('Failed to load:', src);
+                    scriptsLoaded++;
+                    if (scriptsLoaded === scripts.length) {
+                        loadMediaPipe();
+                    }
+                };
+                document.head.appendChild(script);
+            });
+        }
+        
+        function loadMediaPipe() {
+            // MediaPipe is optional, don't block if it fails
+            const mediaPipeScripts = [
+                'https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js',
+                'https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js',
+                'https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js',
+                'https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js'
+            ];
+            
+            let mediaPipeLoaded = 0;
+            mediaPipeScripts.forEach(src => {
+                const script = document.createElement('script');
+                script.src = src;
+                script.onload = () => {
+                    mediaPipeLoaded++;
+                    if (mediaPipeLoaded === mediaPipeScripts.length) {
+                        console.log('MediaPipe loaded successfully');
+                    }
+                };
+                script.onerror = () => {
+                    console.warn('MediaPipe script failed:', src);
+                    mediaPipeLoaded++;
+                };
+                document.head.appendChild(script);
+            });
+            
+            // Don't wait for MediaPipe, start the app
+            setTimeout(initializeApp, 1000);
+        }
+        
+        function initializeApp() {
+            if (!window.THREE) {
+                console.error('Three.js still not available after loading attempts');
+                window.location.href = 'index-fallback.html';
+                return;
+            }
+            
+            // Load our app scripts
+            const appScripts = [
+                'js/texture-generator.js',
+                'js/earth-model.js',
+                'js/gesture-controller.js',
+                'js/ar-manager.js',
+                'js/main.js'
+            ];
+            
+            let appScriptsLoaded = 0;
+            appScripts.forEach(src => {
+                const script = document.createElement('script');
+                script.src = src;
+                script.onload = () => {
+                    appScriptsLoaded++;
+                    console.log('Loaded:', src);
+                };
+                script.onerror = () => {
+                    console.error('Failed to load app script:', src);
+                    appScriptsLoaded++;
+                };
+                document.head.appendChild(script);
+            });
+        }
+        
+        // Start loading Three.js
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('Starting CDN loading process...');
+            document.getElementById('loading-step').textContent = 'Loading Three.js...';
+            tryLoadThreeJS();
+            
+            // Fallback timeout
+            setTimeout(() => {
+                if (!threeJsLoaded) {
+                    console.log('Loading timeout, redirecting to fallback');
+                    window.location.href = 'index-fallback.html';
+                }
+            }, 10000);
+        });
     </script>
-    <script src="js/texture-generator.js"></script>
-    <script src="js/earth-model.js"></script>
-    <script src="js/gesture-controller.js"></script>
-    <script src="js/ar-manager.js"></script>
-    <script src="js/main.js"></script>
+
+    <!-- Scripts are loaded dynamically above -->
 </body>
 </html>
