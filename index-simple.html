@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebXR AR Earth Experience</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+
+        #container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 18px;
+            text-align: center;
+            z-index: 1000;
+        }
+
+        #ui-overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            color: white;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            font-size: 14px;
+            max-width: 300px;
+        }
+
+        #ar-button {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            padding: 15px 30px;
+            background: #007acc;
+            color: white;
+            border: none;
+            border-radius: 25px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        #ar-button:hover {
+            background: #005a9e;
+            transform: translateX(-50%) scale(1.05);
+        }
+
+        #ar-button:disabled {
+            background: #666;
+            cursor: not-allowed;
+            transform: translateX(-50%) scale(1);
+        }
+
+        .error-message {
+            color: #ff6b6b;
+            background: rgba(255, 107, 107, 0.1);
+            border: 1px solid #ff6b6b;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px;
+            text-align: center;
+        }
+
+        .debug-info {
+            position: absolute;
+            bottom: 80px;
+            left: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            max-height: 150px;
+            overflow-y: auto;
+            z-index: 999;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="ui-overlay">
+            <div><strong>WebXR AR Earth Experience</strong></div>
+            <div>Loading resources...</div>
+            <div id="status">Initializing...</div>
+        </div>
+
+        <div id="loading">
+            <div>Loading AR Experience...</div>
+            <div style="margin-top: 10px; font-size: 14px;">
+                <div id="load-step">Starting...</div>
+            </div>
+        </div>
+
+        <button id="ar-button" disabled>
+            Loading...
+        </button>
+
+        <div id="debug-info" class="debug-info" style="display: none;"></div>
+    </div>
+
+    <!-- Load Three.js first -->
+    <script>
+        // Global loading status
+        window.loadingSteps = {
+            threejs: false,
+            mediapipe: false,
+            app: false
+        };
+
+        function updateLoadingStep(step, status, error = null) {
+            const stepEl = document.getElementById('load-step');
+            const statusEl = document.getElementById('status');
+            
+            if (error) {
+                stepEl.innerHTML = `❌ ${step}: ${error}`;
+                statusEl.innerHTML = `Error in ${step}`;
+                console.error(`${step} error:`, error);
+                showErrorRecovery();
+            } else if (status) {
+                stepEl.innerHTML = `✅ ${step}: Complete`;
+                statusEl.innerHTML = `${step} loaded`;
+                console.log(`${step} loaded successfully`);
+            } else {
+                stepEl.innerHTML = `⏳ ${step}: Loading...`;
+                statusEl.innerHTML = `Loading ${step}`;
+                console.log(`${step} starting...`);
+            }
+        }
+
+        function showErrorRecovery() {
+            const loading = document.getElementById('loading');
+            loading.innerHTML = `
+                <div class="error-message">
+                    <h3>Loading Failed</h3>
+                    <p>Some resources failed to load. Let's try a simpler version.</p>
+                    <button onclick="startBasicMode()" style="
+                        background: #007acc; 
+                        color: white; 
+                        border: none; 
+                        padding: 10px 20px; 
+                        border-radius: 5px; 
+                        cursor: pointer;
+                        margin: 10px;
+                    ">Try Basic 3D Mode</button>
+                    <button onclick="location.reload()" style="
+                        background: #28a745; 
+                        color: white; 
+                        border: none; 
+                        padding: 10px 20px; 
+                        border-radius: 5px; 
+                        cursor: pointer;
+                        margin: 10px;
+                    ">Reload Page</button>
+                </div>
+            `;
+        }
+
+        function startBasicMode() {
+            console.log('Starting basic mode without external dependencies');
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('ar-button').textContent = 'Basic 3D Mode';
+            document.getElementById('ar-button').disabled = false;
+            document.getElementById('status').textContent = 'Basic mode ready';
+            
+            // Create basic 3D scene without external libraries
+            createBasic3DScene();
+        }
+
+        function createBasic3DScene() {
+            const canvas = document.createElement('canvas');
+            canvas.style.position = 'absolute';
+            canvas.style.top = '0';
+            canvas.style.left = '0';
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            document.getElementById('container').appendChild(canvas);
+
+            const ctx = canvas.getContext('2d');
+            
+            // Simple 3D earth simulation
+            let rotation = 0;
+            
+            function drawEarth() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                const centerX = canvas.width / 2;
+                const centerY = canvas.height / 2;
+                const radius = Math.min(canvas.width, canvas.height) * 0.2;
+                
+                // Draw earth
+                const gradient = ctx.createRadialGradient(
+                    centerX - radius * 0.3, centerY - radius * 0.3, 0,
+                    centerX, centerY, radius
+                );
+                gradient.addColorStop(0, '#6fa8dc');
+                gradient.addColorStop(0.7, '#4a90e2');
+                gradient.addColorStop(1, '#2c5aa0');
+                
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+                ctx.fill();
+                
+                // Draw continents (simple shapes)
+                ctx.fillStyle = '#8fbc8f';
+                
+                // Rotating continents
+                const rotX = Math.cos(rotation) * radius * 0.3;
+                const rotY = Math.sin(rotation) * radius * 0.2;
+                
+                ctx.beginPath();
+                ctx.ellipse(centerX + rotX, centerY + rotY, radius * 0.2, radius * 0.3, rotation, 0, 2 * Math.PI);
+                ctx.fill();
+                
+                rotation += 0.01;
+                requestAnimationFrame(drawEarth);
+            }
+            
+            drawEarth();
+            
+            // Add touch controls
+            let lastTouch = null;
+            canvas.addEventListener('touchstart', (e) => {
+                lastTouch = e.touches[0];
+            });
+            
+            canvas.addEventListener('touchmove', (e) => {
+                if (lastTouch) {
+                    const deltaX = e.touches[0].clientX - lastTouch.clientX;
+                    rotation += deltaX * 0.01;
+                    lastTouch = e.touches[0];
+                }
+            });
+        }
+
+        // Try loading Three.js with timeout
+        updateLoadingStep('Three.js', false);
+        
+        const script1 = document.createElement('script');
+        script1.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r150/three.min.js';
+        script1.onload = () => {
+            updateLoadingStep('Three.js', true);
+            window.loadingSteps.threejs = true;
+            loadNextStep();
+        };
+        script1.onerror = () => {
+            updateLoadingStep('Three.js', false, 'Failed to load from CDN');
+            setTimeout(showErrorRecovery, 2000);
+        };
+        document.head.appendChild(script1);
+
+        // Timeout for loading
+        setTimeout(() => {
+            if (!window.loadingSteps.threejs) {
+                updateLoadingStep('Three.js', false, 'Loading timeout');
+                showErrorRecovery();
+            }
+        }, 10000);
+
+        function loadNextStep() {
+            if (!window.loadingSteps.threejs) return;
+            
+            // Load MediaPipe (optional)
+            updateLoadingStep('MediaPipe', false);
+            
+            const script2 = document.createElement('script');
+            script2.src = 'https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js';
+            script2.onload = () => {
+                updateLoadingStep('MediaPipe', true);
+                window.loadingSteps.mediapipe = true;
+                initializeApp();
+            };
+            script2.onerror = () => {
+                updateLoadingStep('MediaPipe', false, 'Optional - continuing without gestures');
+                window.loadingSteps.mediapipe = false;
+                initializeApp();
+            };
+            document.head.appendChild(script2);
+
+            // Don't wait forever for MediaPipe
+            setTimeout(() => {
+                if (!window.loadingSteps.mediapipe) {
+                    console.log('MediaPipe timeout - continuing without it');
+                    initializeApp();
+                }
+            }, 5000);
+        }
+
+        function initializeApp() {
+            if (window.loadingSteps.app) return; // Already initialized
+            
+            updateLoadingStep('App', false);
+            
+            try {
+                // Create basic Three.js scene
+                const scene = new THREE.Scene();
+                const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+                const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+                
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                renderer.setClearColor(0x000000, 0);
+                document.getElementById('container').appendChild(renderer.domElement);
+                
+                // Create Earth
+                const geometry = new THREE.SphereGeometry(1, 32, 16);
+                const material = new THREE.MeshPhongMaterial({ color: 0x4a90e2 });
+                const earth = new THREE.Mesh(geometry, material);
+                scene.add(earth);
+                
+                // Add lighting
+                const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+                scene.add(ambientLight);
+                const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+                directionalLight.position.set(5, 5, 5);
+                scene.add(directionalLight);
+                
+                camera.position.z = 5;
+                
+                // Animation loop
+                function animate() {
+                    requestAnimationFrame(animate);
+                    earth.rotation.y += 0.005;
+                    renderer.render(scene, camera);
+                }
+                animate();
+                
+                // Touch controls
+                let isRotating = false;
+                let lastTouch = null;
+                
+                renderer.domElement.addEventListener('touchstart', (e) => {
+                    isRotating = true;
+                    lastTouch = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+                });
+                
+                renderer.domElement.addEventListener('touchmove', (e) => {
+                    if (isRotating && lastTouch) {
+                        const deltaX = e.touches[0].clientX - lastTouch.x;
+                        const deltaY = e.touches[0].clientY - lastTouch.y;
+                        
+                        earth.rotation.y += deltaX * 0.01;
+                        earth.rotation.x += deltaY * 0.01;
+                        
+                        lastTouch = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+                    }
+                });
+                
+                renderer.domElement.addEventListener('touchend', () => {
+                    isRotating = false;
+                    lastTouch = null;
+                });
+                
+                // Window resize
+                window.addEventListener('resize', () => {
+                    camera.aspect = window.innerWidth / window.innerHeight;
+                    camera.updateProjectionMatrix();
+                    renderer.setSize(window.innerWidth, window.innerHeight);
+                });
+                
+                updateLoadingStep('App', true);
+                window.loadingSteps.app = true;
+                
+                // Hide loading screen
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('ar-button').textContent = 'AR Not Available - Using 3D Mode';
+                document.getElementById('ar-button').disabled = true;
+                document.getElementById('status').textContent = '3D Earth Ready! Touch to rotate.';
+                
+            } catch (error) {
+                updateLoadingStep('App', false, error.message);
+                showErrorRecovery();
+            }
+        }
+    </script>
+</body>
+</html>

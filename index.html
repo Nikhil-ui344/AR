@@ -101,7 +101,21 @@
         </div>
 
         <div id="loading">
-            Loading AR Experience...
+            <div>Loading AR Experience...</div>
+            <div style="margin-top: 10px; font-size: 14px;" id="loading-step">
+                Checking resources...
+            </div>
+            <div style="margin-top: 15px;">
+                <button onclick="location.href='index-fallback.html'" style="
+                    background: #28a745; 
+                    color: white; 
+                    border: none; 
+                    padding: 10px 20px; 
+                    border-radius: 5px; 
+                    cursor: pointer;
+                    font-size: 14px;
+                ">Skip to Simple Version</button>
+            </div>
         </div>
 
         <button id="ar-button" disabled>
@@ -123,6 +137,40 @@
     <script crossorigin="anonymous" src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
 
     <!-- Main Application Scripts -->
+    <script>
+        // Auto-redirect to fallback if main app fails to load
+        setTimeout(() => {
+            const loadingElement = document.getElementById('loading');
+            if (loadingElement && loadingElement.style.display !== 'none') {
+                console.log('Loading timeout - redirecting to fallback version');
+                const loadingStep = document.getElementById('loading-step');
+                if (loadingStep) {
+                    loadingStep.innerHTML = `
+                        <div style="color: #ff6b6b;">Loading is taking too long...</div>
+                        <div style="margin-top: 10px;">
+                            <button onclick="location.href='index-fallback.html'" style="
+                                background: #007acc; 
+                                color: white; 
+                                border: none; 
+                                padding: 12px 24px; 
+                                border-radius: 5px; 
+                                cursor: pointer;
+                                font-size: 16px;
+                                animation: pulse 2s infinite;
+                            ">Try Lightweight Version</button>
+                        </div>
+                        <style>
+                            @keyframes pulse {
+                                0% { transform: scale(1); }
+                                50% { transform: scale(1.05); }
+                                100% { transform: scale(1); }
+                            }
+                        </style>
+                    `;
+                }
+            }
+        }, 8000); // 8 second timeout
+    </script>
     <script src="js/texture-generator.js"></script>
     <script src="js/earth-model.js"></script>
     <script src="js/gesture-controller.js"></script>

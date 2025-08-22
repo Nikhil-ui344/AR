@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AR Earth - Lightweight Version</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: radial-gradient(circle at 30% 30%, #1a1a2e, #16213e, #0f0f23);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            height: 100vh;
+            color: white;
+        }
+        
+        #container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        #earth-canvas {
+            border-radius: 50%;
+            box-shadow: 
+                0 0 50px rgba(74, 144, 226, 0.5),
+                inset -20px -20px 50px rgba(0, 0, 0, 0.5);
+            cursor: grab;
+        }
+        
+        #earth-canvas:active {
+            cursor: grabbing;
+        }
+        
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+        }
+        
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px 25px;
+            border-radius: 25px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .control-btn {
+            background: linear-gradient(45deg, #007acc, #0056b3);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+        
+        .control-btn:hover {
+            background: linear-gradient(45deg, #0056b3, #007acc);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 122, 204, 0.4);
+        }
+        
+        .control-btn:active {
+            transform: translateY(0);
+        }
+        
+        #status {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            font-size: 18px;
+            z-index: 1000;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 20px 30px;
+            border-radius: 15px;
+            display: none;
+        }
+        
+        .stars {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        
+        .star {
+            position: absolute;
+            background: white;
+            border-radius: 50%;
+            animation: twinkle 2s infinite alternate;
+        }
+        
+        @keyframes twinkle {
+            0% { opacity: 0.3; }
+            100% { opacity: 1; }
+        }
+        
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="stars" id="stars"></div>
+    
+    <div id="container">
+        <canvas id="earth-canvas" width="400" height="400"></canvas>
+        
+        <div id="ui">
+            <h3>🌍 AR Earth Experience</h3>
+            <div id="info">
+                <div>📱 Touch & drag to rotate</div>
+                <div>🔄 Auto-rotation enabled</div>
+                <div>⚡ Lightweight version</div>
+            </div>
+        </div>
+        
+        <div id="controls">
+            <button class="control-btn" onclick="resetEarth()">🔄 Reset</button>
+            <button class="control-btn" onclick="toggleAutoRotate()">⏸️ Pause</button>
+            <button class="control-btn" onclick="changeSpeed()">⚡ Speed</button>
+            <button class="control-btn" onclick="showInfo()">ℹ️ Info</button>
+        </div>
+        
+        <div id="status">
+            <h3>AR Not Available</h3>
+            <p>This device doesn't support WebXR AR.<br>
+            Enjoy the 3D Earth experience instead!</p>
+            <button class="control-btn" onclick="hideStatus()">Continue</button>
+        </div>
+    </div>
+
+    <script>
+        class SimpleEarth {
+            constructor() {
+                this.canvas = document.getElementById('earth-canvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.centerX = this.canvas.width / 2;
+                this.centerY = this.canvas.height / 2;
+                this.radius = 180;
+                this.rotation = 0;
+                this.autoRotate = true;
+                this.rotationSpeed = 0.005;
+                this.isDragging = false;
+                this.lastTouch = null;
+                
+                this.setupEventListeners();
+                this.createStars();
+                this.animate();
+                
+                // Check for WebXR support
+                this.checkARSupport();
+            }
+            
+            async checkARSupport() {
+                if (navigator.xr) {
+                    try {
+                        const supported = await navigator.xr.isSessionSupported('immersive-ar');
+                        if (!supported) {
+                            setTimeout(() => {
+                                document.getElementById('status').style.display = 'block';
+                            }, 2000);
+                        }
+                    } catch (error) {
+                        setTimeout(() => {
+                            document.getElementById('status').style.display = 'block';
+                        }, 2000);
+                    }
+                } else {
+                    setTimeout(() => {
+                        document.getElementById('status').style.display = 'block';
+                    }, 2000);
+                }
+            }
+            
+            createStars() {
+                const starsContainer = document.getElementById('stars');
+                for (let i = 0; i < 100; i++) {
+                    const star = document.createElement('div');
+                    star.className = 'star';
+                    star.style.left = Math.random() * 100 + '%';
+                    star.style.top = Math.random() * 100 + '%';
+                    star.style.width = Math.random() * 3 + 1 + 'px';
+                    star.style.height = star.style.width;
+                    star.style.animationDelay = Math.random() * 2 + 's';
+                    star.style.animationDuration = (Math.random() * 3 + 1) + 's';
+                    starsContainer.appendChild(star);
+                }
+            }
+            
+            setupEventListeners() {
+                // Touch events
+                this.canvas.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    this.isDragging = true;
+                    this.lastTouch = {
+                        x: e.touches[0].clientX,
+                        y: e.touches[0].clientY
+                    };
+                });
+                
+                this.canvas.addEventListener('touchmove', (e) => {
+                    e.preventDefault();
+                    if (this.isDragging && this.lastTouch) {
+                        const deltaX = e.touches[0].clientX - this.lastTouch.x;
+                        this.rotation += deltaX * 0.01;
+                        this.lastTouch = {
+                            x: e.touches[0].clientX,
+                            y: e.touches[0].clientY
+                        };
+                    }
+                });
+                
+                this.canvas.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    this.isDragging = false;
+                    this.lastTouch = null;
+                });
+                
+                // Mouse events for desktop
+                this.canvas.addEventListener('mousedown', (e) => {
+                    this.isDragging = true;
+                    this.lastTouch = { x: e.clientX, y: e.clientY };
+                });
+                
+                this.canvas.addEventListener('mousemove', (e) => {
+                    if (this.isDragging && this.lastTouch) {
+                        const deltaX = e.clientX - this.lastTouch.x;
+                        this.rotation += deltaX * 0.01;
+                        this.lastTouch = { x: e.clientX, y: e.clientY };
+                    }
+                });
+                
+                this.canvas.addEventListener('mouseup', () => {
+                    this.isDragging = false;
+                    this.lastTouch = null;
+                });
+                
+                // Prevent context menu
+                this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+                
+                // Window resize
+                window.addEventListener('resize', () => {
+                    const size = Math.min(window.innerWidth * 0.8, window.innerHeight * 0.6, 400);
+                    this.canvas.width = size;
+                    this.canvas.height = size;
+                    this.centerX = size / 2;
+                    this.centerY = size / 2;
+                    this.radius = size * 0.45;
+                });
+            }
+            
+            drawEarth() {
+                // Clear canvas
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                // Create gradient for 3D effect
+                const gradient = this.ctx.createRadialGradient(
+                    this.centerX - this.radius * 0.3,
+                    this.centerY - this.radius * 0.3,
+                    0,
+                    this.centerX,
+                    this.centerY,
+                    this.radius
+                );
+                gradient.addColorStop(0, '#87CEEB'); // Light blue
+                gradient.addColorStop(0.3, '#4682B4'); // Steel blue
+                gradient.addColorStop(0.7, '#1E90FF'); // Dodger blue
+                gradient.addColorStop(1, '#191970'); // Midnight blue
+                
+                // Draw ocean
+                this.ctx.fillStyle = gradient;
+                this.ctx.beginPath();
+                this.ctx.arc(this.centerX, this.centerY, this.radius, 0, 2 * Math.PI);
+                this.ctx.fill();
+                
+                // Draw continents
+                this.drawContinents();
+                
+                // Draw atmosphere glow
+                this.drawAtmosphere();
+                
+                // Draw shadow/terminator line
+                this.drawShadow();
+            }
+            
+            drawContinents() {
+                this.ctx.fillStyle = '#228B22'; // Forest green
+                
+                const continents = [
+                    // North America
+                    { x: -0.6, y: -0.2, w: 0.4, h: 0.6, rotation: 0.2 },
+                    // South America
+                    { x: -0.4, y: 0.3, w: 0.3, h: 0.7, rotation: 0.3 },
+                    // Africa
+                    { x: 0, y: 0, w: 0.3, h: 0.8, rotation: 0 },
+                    // Europe/Asia
+                    { x: 0.2, y: -0.3, w: 0.8, h: 0.4, rotation: -0.1 },
+                    // Australia
+                    { x: 0.5, y: 0.4, w: 0.2, h: 0.15, rotation: 0 }
+                ];
+                
+                continents.forEach(continent => {
+                    const rotatedX = continent.x * Math.cos(this.rotation) - continent.y * Math.sin(this.rotation);
+                    const rotatedY = continent.x * Math.sin(this.rotation) + continent.y * Math.cos(this.rotation);
+                    
+                    // Only draw if on visible hemisphere
+                    if (rotatedX > -1) {
+                        const perspectiveScale = 0.5 + 0.5 * (rotatedX + 1);
+                        
+                        this.ctx.save();
+                        this.ctx.translate(this.centerX, this.centerY);
+                        
+                        this.ctx.beginPath();
+                        this.ctx.ellipse(
+                            rotatedX * this.radius * 0.8,
+                            rotatedY * this.radius * 0.8,
+                            continent.w * this.radius * perspectiveScale,
+                            continent.h * this.radius * perspectiveScale,
+                            continent.rotation,
+                            0,
+                            2 * Math.PI
+                        );
+                        this.ctx.fill();
+                        
+                        this.ctx.restore();
+                    }
+                });
+            }
+            
+            drawAtmosphere() {
+                const atmGradient = this.ctx.createRadialGradient(
+                    this.centerX, this.centerY, this.radius,
+                    this.centerX, this.centerY, this.radius + 20
+                );
+                atmGradient.addColorStop(0, 'rgba(135, 206, 235, 0.3)');
+                atmGradient.addColorStop(1, 'rgba(135, 206, 235, 0)');
+                
+                this.ctx.fillStyle = atmGradient;
+                this.ctx.beginPath();
+                this.ctx.arc(this.centerX, this.centerY, this.radius + 20, 0, 2 * Math.PI);
+                this.ctx.fill();
+            }
+            
+            drawShadow() {
+                const shadowGradient = this.ctx.createLinearGradient(
+                    this.centerX - this.radius, this.centerY,
+                    this.centerX + this.radius, this.centerY
+                );
+                shadowGradient.addColorStop(0, 'rgba(0, 0, 0, 0.6)');
+                shadowGradient.addColorStop(0.7, 'rgba(0, 0, 0, 0)');
+                
+                this.ctx.fillStyle = shadowGradient;
+                this.ctx.beginPath();
+                this.ctx.arc(this.centerX, this.centerY, this.radius, 0, 2 * Math.PI);
+                this.ctx.fill();
+            }
+            
+            animate() {
+                if (this.autoRotate && !this.isDragging) {
+                    this.rotation += this.rotationSpeed;
+                }
+                
+                this.drawEarth();
+                requestAnimationFrame(() => this.animate());
+            }
+        }
+        
+        // Global functions for controls
+        let earth;
+        
+        function resetEarth() {
+            if (earth) {
+                earth.rotation = 0;
+            }
+        }
+        
+        function toggleAutoRotate() {
+            if (earth) {
+                earth.autoRotate = !earth.autoRotate;
+                const btn = event.target;
+                btn.innerHTML = earth.autoRotate ? '⏸️ Pause' : '▶️ Play';
+            }
+        }
+        
+        function changeSpeed() {
+            if (earth) {
+                const speeds = [0.002, 0.005, 0.01, 0.02];
+                const currentIndex = speeds.indexOf(earth.rotationSpeed);
+                earth.rotationSpeed = speeds[(currentIndex + 1) % speeds.length];
+                
+                const btn = event.target;
+                const speedNames = ['🐌 Slow', '⚡ Normal', '🚀 Fast', '💨 Hyper'];
+                btn.innerHTML = speedNames[(currentIndex + 1) % speeds.length];
+            }
+        }
+        
+        function showInfo() {
+            alert(`🌍 WebXR AR Earth Experience (Lightweight)
+
+This is a simplified version that works on all devices.
+
+Features:
+• Touch/drag to rotate Earth
+• Auto-rotation with speed controls
+• Realistic day/night terminator
+• 3D perspective continents
+
+For the full AR experience with hand gestures, you need:
+• Chrome on Android with WebXR support
+• Camera permissions
+• HTTPS connection`);
+        }
+        
+        function hideStatus() {
+            document.getElementById('status').style.display = 'none';
+        }
+        
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            earth = new SimpleEarth();
+            console.log('Simple Earth initialized successfully!');
+        });
+    </script>
+</body>
+</html>
