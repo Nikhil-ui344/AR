@@ -29,13 +29,32 @@ class GestureController {
     
     async init() {
         try {
+            console.log('Starting gesture controller initialization...');
+            
+            // Check if MediaPipe is available
+            if (typeof Hands === 'undefined') {
+                console.warn('MediaPipe Hands not loaded - continuing without gestures');
+                return false;
+            }
+            
+            // Check camera availability
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                console.warn('Camera not available - continuing without gestures');
+                return false;
+            }
+            
             await this.setupCamera();
+            console.log('Camera setup complete');
+            
             await this.setupMediaPipe();
+            console.log('MediaPipe setup complete');
+            
             this.isInitialized = true;
             console.log('Gesture controller initialized successfully');
             return true;
         } catch (error) {
             console.error('Failed to initialize gesture controller:', error);
+            // Don't throw - just return false so app continues
             return false;
         }
     }

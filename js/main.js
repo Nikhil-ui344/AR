@@ -37,9 +37,16 @@ class AREarthApp {
             console.log('Initializing AR Earth Experience...');
             
             this.setupUI();
+            console.log('UI setup complete');
+            
             this.setupThreeJS();
+            console.log('Three.js setup complete');
+            
             await this.initializeModules();
+            console.log('Modules initialized');
+            
             this.setupEventListeners();
+            console.log('Event listeners setup complete');
             
             this.isInitialized = true;
             this.isLoading = false;
@@ -116,39 +123,61 @@ class AREarthApp {
     async initializeModules() {
         // Initialize Earth model
         console.log('Loading Earth model...');
-        this.earthModel = new EarthModel(this.scene, {
-            radius: 0.5,
-            position: new THREE.Vector3(0, 0, -2)
-        });
-        
-        await this.earthModel.init();
-        console.log('Earth model loaded');
+        try {
+            this.earthModel = new EarthModel(this.scene, {
+                radius: 0.5,
+                position: new THREE.Vector3(0, 0, -2)
+            });
+            
+            await this.earthModel.init();
+            console.log('Earth model loaded successfully');
+        } catch (error) {
+            console.error('Earth model failed to load:', error);
+            // Continue anyway - create a basic fallback
+            this.createBasicEarthFallback();
+        }
         
         // Initialize AR Manager
-        console.log('Initializing AR...');
-        this.arManager = new ARManager();
-        const arSupported = await this.arManager.init(this.scene, this.camera, this.renderer);
-        
-        if (arSupported) {
-            // Set up AR callbacks
-            this.arManager.setOnFrameUpdate(this.onARFrame.bind(this));
-            this.arManager.setOnAnchorUpdate(this.onAnchorUpdate.bind(this));
-            this.arManager.setOnSessionEnd(this.onARSessionEnd.bind(this));
-        } else {
-            // Enable fallback mode
-            this.arManager.enableFallbackMode();
+        console.log('Initializing AR Manager...');
+        try {
+            this.arManager = new ARManager();
+            const arSupported = await this.arManager.init(this.scene, this.camera, this.renderer);
+            
+            if (arSupported) {
+                console.log('AR supported and initialized');
+                // Set up AR callbacks
+                this.arManager.setOnFrameUpdate(this.onARFrame.bind(this));
+                this.arManager.setOnAnchorUpdate(this.onAnchorUpdate.bind(this));
+                this.arManager.setOnSessionEnd(this.onARSessionEnd.bind(this));
+            } else {
+                console.log('AR not supported, enabling fallback mode');
+                // Enable fallback mode
+                this.arManager.enableFallbackMode();
+            }
+        } catch (error) {
+            console.error('AR Manager initialization failed:', error);
+            // Create basic fallback
+            this.enableBasicFallback();
         }
         
         // Initialize gesture controller
         console.log('Initializing gesture controller...');
-        this.gestureController = new GestureController(this.onGesture.bind(this));
-        const gesturesSupported = await this.gestureController.init();
-        
-        if (!gesturesSupported) {
-            console.warn('Gesture control not available');
+        try {
+            this.gestureController = new GestureController(this.onGesture.bind(this));
+            const gesturesSupported = await this.gestureController.init();
+            
+            if (gesturesSupported) {
+                console.log('Gesture controller initialized successfully');
+            } else {
+                console.warn('Gesture control not available - continuing without gestures');
+            }
+        } catch (error) {
+            console.warn('Gesture controller failed to initialize:', error);
+            // Continue without gestures - not critical
+            this.gestureController = null;
         }
         
-        console.log('All modules initialized');
+        console.log('All modules initialization complete');
     }
     
     setupEventListeners() {
@@ -337,12 +366,80 @@ class AREarthApp {
         }
     }
     
-    updateFPSDisplay() {
-        // This could update a FPS counter in the UI
-        // For now, just log to console in debug mode
-        if (window.location.search.includes('debug')) {
-            console.log(`FPS: ${this.currentFPS}`);
-        }
+    createBasicEarthFallback() {
+        console.log('Creating basic Earth fallback');
+        // Create a simple sphere as fallback
+        const geometry = new THREE.SphereGeometry(0.5, 32, 16);
+        const material = new THREE.MeshPhongMaterial({
+            color: 0x4a90e2,
+            shininess: 100
+        });
+        
+        const earthMesh = new THREE.Mesh(geometry, material);
+        earthMesh.position.set(0, 0, -2);
+        this.scene.add(earthMesh);
+        
+        // Create a basic controller object
+        this.earthModel = {
+            isLoaded: true,
+            update: () => {
+                earthMesh.rotation.y += 0.005;
+            },
+            zoom: (factor) => {
+                const newScale = earthMesh.scale.x * factor;
+                const clampedScale = THREE.MathUtils.clamp(newScale, 0.1, 3.0);
+                earthMesh.scale.setScalar(clampedScale);
+            },
+            rotate: (deltaX, deltaY) => {
+                earthMesh.rotation.y += deltaX * 0.01;
+                earthMesh.rotation.x += deltaY * 0.01;
+            },
+            resetOrientation: () => {
+                earthMesh.rotation.set(0, 0, 0);
+                earthMesh.scale.set(1, 1, 1);
+            },
+            setPosition: (x, y, z) => {
+                earthMesh.position.set(x, y, z);
+            },
+            dispose: () => {
+                this.scene.remove(earthMesh);
+            }
+        };
+    }
+    
+    enableBasicFallback() {
+        console.log('Enabling basic fallback mode');
+        // Create a minimal AR manager fallback
+        this.arManager = {
+            isARSupported: false,
+            isARActive: false,
+            enableFallbackMode: () => {
+                console.log('Basic fallback mode enabled');
+                
+                // Set up basic 3D scene
+                this.camera.position.set(0, 0, 5);
+                this.camera.lookAt(0, 0, 0);
+                
+                // Start basic render loop
+                const animate = () => {
+                    requestAnimationFrame(animate);
+                    
+                    if (this.onARFrame) {
+                        this.onARFrame(performance.now(), null);
+                    }
+                    
+                    this.renderer.render(this.scene, this.camera);
+                };
+                
+                animate();
+            },
+            startARSession: () => Promise.resolve(false),
+            endARSession: () => Promise.resolve(),
+            isSessionActive: () => false,
+            dispose: () => {}
+        };
+        
+        this.arManager.enableFallbackMode();
     }
     
     handleInitializationError(error) {
@@ -388,20 +485,53 @@ class AREarthApp {
 
 // Initialize application when DOM is loaded
 document.addEventListener('DOMContentLoaded', async () => {
+    console.log('DOM loaded, starting initialization...');
+    
     // Check for required features
     if (!window.THREE) {
         console.error('Three.js not loaded');
+        document.getElementById('loading').textContent = 'Error: Three.js not loaded. Please refresh.';
         return;
     }
     
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        console.error('Camera access not available');
-        return;
-    }
-    
-    // Create and initialize the application
+    // Create and initialize the application with timeout
     window.arEarthApp = new AREarthApp();
-    await window.arEarthApp.init();
+    
+    // Add initialization timeout
+    const initTimeout = new Promise((resolve, reject) => {
+        setTimeout(() => {
+            reject(new Error('Initialization timeout - taking too long'));
+        }, 15000); // 15 second timeout
+    });
+    
+    try {
+        await Promise.race([
+            window.arEarthApp.init(),
+            initTimeout
+        ]);
+    } catch (error) {
+        console.error('Initialization failed:', error);
+        
+        // Show error message to user
+        const loading = document.getElementById('loading');
+        if (loading) {
+            loading.innerHTML = `
+                <div style="color: #ff6b6b; text-align: center;">
+                    <h3>Initialization Failed</h3>
+                    <p>${error.message}</p>
+                    <button onclick="location.reload()" style="
+                        background: #007acc; 
+                        color: white; 
+                        border: none; 
+                        padding: 10px 20px; 
+                        border-radius: 5px; 
+                        cursor: pointer;
+                        margin-top: 10px;
+                    ">Try Again</button>
+                </div>
+            `;
+        }
+    }
 });
 
 // Handle page unload
