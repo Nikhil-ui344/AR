@@ -1,0 +1,38 @@
+{
+  "name": "webxr-ar-earth-experience",
+  "version": "1.0.0",
+  "description": "WebXR AR experience with interactive 3D Earth controlled by MediaPipe hand gestures",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "serve": "python -m http.server 8000",
+    "serve-php": "php -S localhost:8000"
+  },
+  "keywords": [
+    "webxr",
+    "ar",
+    "augmented-reality",
+    "three.js",
+    "mediapipe",
+    "hand-tracking",
+    "earth",
+    "3d",
+    "gesture-control"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {},
+  "engines": {
+    "node": ">=12.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/webxr-ar-earth"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/webxr-ar-earth/issues"
+  },
+  "homepage": "https://github.com/yourusername/webxr-ar-earth#readme"
+}
